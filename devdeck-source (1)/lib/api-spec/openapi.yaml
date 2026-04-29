@@ -1,0 +1,530 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Coding Daily Todo API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: tasks
+    description: Daily coding tasks
+  - name: stats
+    description: Aggregate statistics
+  - name: profile
+    description: User platform handles
+  - name: sync
+    description: Sync solved problems from coding platforms
+  - name: rollover
+    description: Daily rollover for recurring and carry-over tasks
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: List tasks for a given date (defaults to today)
+      parameters:
+        - in: query
+          name: date
+          required: false
+          schema:
+            type: string
+            description: ISO date string (YYYY-MM-DD). Defaults to today.
+      responses:
+        "200":
+          description: Tasks for the date
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Create a new coding task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+
+  /tasks/{id}:
+    patch:
+      operationId: updateTask
+      tags: [tasks]
+      summary: Update a task (title, category, target, progress, notes, completion, link)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskBody"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Delete a task
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /tasks/{id}/increment:
+    post:
+      operationId: incrementTaskProgress
+      tags: [tasks]
+      summary: Increment progress of a quantitative task by 1
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+
+  /stats/today:
+    get:
+      operationId: getTodayStats
+      tags: [stats]
+      summary: Today's progress summary
+      responses:
+        "200":
+          description: Today's stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TodayStats"
+
+  /stats/streak:
+    get:
+      operationId: getStreak
+      tags: [stats]
+      summary: Current and longest daily streak
+      responses:
+        "200":
+          description: Streak info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StreakInfo"
+
+  /stats/weekly:
+    get:
+      operationId: getWeeklyActivity
+      tags: [stats]
+      summary: Last 7 days of completion activity
+      responses:
+        "200":
+          description: Weekly activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DayActivity"
+
+  /stats/categories:
+    get:
+      operationId: getCategoryBreakdown
+      tags: [stats]
+      summary: All-time completed task counts grouped by category
+      responses:
+        "200":
+          description: Category breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryCount"
+
+  /profile:
+    get:
+      operationId: getProfile
+      tags: [profile]
+      summary: Get the user's coding platform handles
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+    put:
+      operationId: updateProfile
+      tags: [profile]
+      summary: Update the user's coding platform handles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileBody"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+
+  /sync:
+    post:
+      operationId: syncPlatforms
+      tags: [sync]
+      summary: Fetch today's accepted solutions from connected platforms and apply progress to platform-linked DSA tasks
+      responses:
+        "200":
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResult"
+
+  /rollover:
+    post:
+      operationId: runRollover
+      tags: [rollover]
+      summary: Process the day rollover — deduct points for unfinished tasks, spawn recurring tasks for today, and carry over remaining counts.
+      responses:
+        "200":
+          description: Rollover result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolloverResult"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    Category:
+      type: string
+      enum:
+        - dsa
+        - project
+        - learning
+        - reading
+        - system_design
+        - interview
+        - other
+
+    Platform:
+      type: string
+      enum:
+        - leetcode
+        - codeforces
+      description: Coding platform a task can be linked to
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        category:
+          $ref: "#/components/schemas/Category"
+        targetCount:
+          type: integer
+        progressCount:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+        date:
+          type: string
+        completed:
+          type: boolean
+        linkedPlatform:
+          oneOf:
+            - $ref: "#/components/schemas/Platform"
+            - type: "null"
+        recurring:
+          type: boolean
+          description: When true, a fresh copy is automatically created for the next day.
+        carryOverIncomplete:
+          type: boolean
+          description: When true and the task is incomplete at day end, the remaining amount rolls over to the next day.
+        pointsDeducted:
+          type: boolean
+          description: True after the rollover has deducted a point for this task being unfinished.
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - title
+        - category
+        - targetCount
+        - progressCount
+        - date
+        - completed
+        - recurring
+        - carryOverIncomplete
+        - pointsDeducted
+        - createdAt
+
+    CreateTaskBody:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        category:
+          $ref: "#/components/schemas/Category"
+        targetCount:
+          type: integer
+          minimum: 1
+          default: 1
+        notes:
+          type: string
+          nullable: true
+        date:
+          type: string
+        linkedPlatform:
+          oneOf:
+            - $ref: "#/components/schemas/Platform"
+            - type: "null"
+        recurring:
+          type: boolean
+          default: false
+        carryOverIncomplete:
+          type: boolean
+          default: false
+      required: [title, category]
+
+    UpdateTaskBody:
+      type: object
+      properties:
+        title:
+          type: string
+        category:
+          $ref: "#/components/schemas/Category"
+        targetCount:
+          type: integer
+          minimum: 1
+        progressCount:
+          type: integer
+          minimum: 0
+        notes:
+          type: string
+          nullable: true
+        completed:
+          type: boolean
+        linkedPlatform:
+          oneOf:
+            - $ref: "#/components/schemas/Platform"
+            - type: "null"
+        recurring:
+          type: boolean
+        carryOverIncomplete:
+          type: boolean
+
+    TodayStats:
+      type: object
+      properties:
+        date:
+          type: string
+        totalTasks:
+          type: integer
+        completedTasks:
+          type: integer
+        targetUnits:
+          type: integer
+        progressUnits:
+          type: integer
+        completionPct:
+          type: number
+      required:
+        - date
+        - totalTasks
+        - completedTasks
+        - targetUnits
+        - progressUnits
+        - completionPct
+
+    StreakInfo:
+      type: object
+      properties:
+        currentStreak:
+          type: integer
+        longestStreak:
+          type: integer
+        lastCompletedDate:
+          type: string
+          nullable: true
+      required: [currentStreak, longestStreak]
+
+    DayActivity:
+      type: object
+      properties:
+        date:
+          type: string
+        completedTasks:
+          type: integer
+        totalTasks:
+          type: integer
+      required: [date, completedTasks, totalTasks]
+
+    CategoryCount:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/Category"
+        completedCount:
+          type: integer
+      required: [category, completedCount]
+
+    Profile:
+      type: object
+      properties:
+        leetcodeHandle:
+          type: string
+          nullable: true
+        codeforcesHandle:
+          type: string
+          nullable: true
+        lastSyncedAt:
+          type: string
+          format: date-time
+          nullable: true
+        points:
+          type: integer
+          description: Net points earned (+1 per completed task, -1 per task left unfinished at day end).
+        lastRolloverDate:
+          type: string
+          nullable: true
+          description: Date of the last rollover that was processed.
+      required: [points]
+
+    UpdateProfileBody:
+      type: object
+      properties:
+        leetcodeHandle:
+          type: string
+          nullable: true
+        codeforcesHandle:
+          type: string
+          nullable: true
+
+    PlatformSyncStatus:
+      type: object
+      properties:
+        platform:
+          $ref: "#/components/schemas/Platform"
+        handle:
+          type: string
+          nullable: true
+        connected:
+          type: boolean
+        ok:
+          type: boolean
+        solvedToday:
+          type: integer
+        recentTitles:
+          type: array
+          items:
+            type: string
+        error:
+          type: string
+          nullable: true
+      required: [platform, connected, ok, solvedToday, recentTitles]
+
+    SyncResult:
+      type: object
+      properties:
+        syncedAt:
+          type: string
+          format: date-time
+        platforms:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlatformSyncStatus"
+        updatedTasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+      required: [syncedAt, platforms, updatedTasks]
+
+    RolloverResult:
+      type: object
+      properties:
+        rolledOver:
+          type: boolean
+          description: Whether the rollover did anything (false if already processed for today).
+        processedDate:
+          type: string
+          description: The date the rollover was processed for (today).
+        deductedTasks:
+          type: integer
+          description: How many unfinished tasks had a point deducted.
+        createdTasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+          description: New tasks spawned for today (recurring + carry-over).
+        pointsDelta:
+          type: integer
+          description: Net change applied to the user's points during this rollover.
+        newPoints:
+          type: integer
+          description: Total points after rollover.
+      required: [rolledOver, processedDate, deductedTasks, createdTasks, pointsDelta, newPoints]
