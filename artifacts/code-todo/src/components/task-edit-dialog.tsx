@@ -48,7 +48,10 @@ import { Switch } from "@/components/ui/switch";
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
   category: z.nativeEnum(Category),
-  targetCount: z.coerce.number().min(1).optional().or(z.literal("")),
+  targetCount: z
+    .string()
+    .optional()
+    .refine((value) => !value || Number(value) >= 1, "Target must be at least 1"),
   notes: z.string().optional(),
   linkedPlatform: z.enum(["none", ...Object.values(Platform)]).optional().default("none"),
   recurring: z.boolean().default(false),
@@ -73,7 +76,7 @@ export function TaskEditDialog({
     defaultValues: {
       title: task.title,
       category: task.category,
-      targetCount: task.targetCount.toString(),
+      targetCount: task.targetCount ? task.targetCount.toString() : "",
       notes: task.notes || "",
       linkedPlatform: task.linkedPlatform || "none",
       recurring: task.recurring || false,
